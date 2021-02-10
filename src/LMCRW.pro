@@ -15,7 +15,6 @@ DEFINES += LMCRWEXP_LIBRARY
 
 SOURCES += \
     kilobot.cpp \
-    clientStuff.cpp \
     LMCRWEnvironment.cpp \
     LMCRWExperiment.cpp
 

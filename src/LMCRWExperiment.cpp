@@ -1,5 +1,5 @@
-#include "dhtfExperiment.h"
-#include "dhtfEnvironment.h"
+#include "LMCRWExperiment.h"
+#include "LMCRWEnvironment.h"
 
 #include <QDebug>
 #include <QThread>
@@ -28,7 +28,7 @@
 
 // return pointer to interface!
 // mykilobotexperiment can and should be completely hidden from the application
-extern "C" DHTFEXPSHARED_EXPORT KilobotExperiment *createExpt()
+extern "C" LMCRWEXPSHARED_EXPORT KilobotExperiment *createExpt()
 {
     return new mykilobotexperiment();
 }
@@ -42,67 +42,13 @@ mykilobotexperiment::mykilobotexperiment() {
     qsrand(cd.toTime_t());
 
     // setup the environments here
-    connect(&dhtfEnvironment,SIGNAL(transmitKiloState(kilobot_message)), this, SLOT(signalKilobotExpt(kilobot_message)));
+    connect(&LMCRWEnvironment,SIGNAL(transmitKiloState(kilobot_message)), this, SLOT(signalKilobotExpt(kilobot_message)));
     this->serviceInterval = 100; // timestep expressed in ms
 
-
-    client = new ClientStuff("150.146.65.45", 7001); //other CNR workstation
-    // client = new ClientStuff("127.0.0.1", 7001); //local
-    // client = new ClientStuff("143.167.48.37", 7001); //sheffield
-    //    setStatus(client->getStatus());
-    connect(client, &ClientStuff::hasReadSome, this, &mykilobotexperiment::receivedSomething);
-    connect(client->tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
-            this, SLOT(gotError(QAbstractSocket::SocketError)));
 }
 
-void mykilobotexperiment::receivedSomething(QString msg)
-{
-    qDebug() << QString("Receiving: %1").arg(msg);
-    dhtfEnvironment.receive_buffer = msg;
-    if(msg.startsWith("I"))
-        qDebug() <<"startsWith IIIIIIIIIIIIIIIIIIIIII";
-}
 
-void mykilobotexperiment::on_pushButton_send_clicked()
-{
-    QString str1 = bufferLineEdit->text();
-    QByteArray ba = str1.toLocal8Bit();
-    const char *c_str2 = ba.data();
-    client->tcpSocket->write(c_str2);
-}
 
-void mykilobotexperiment::sendToServer(QString msg)
-{
-    qDebug() << QString("Sending: %1").arg(msg);
-    QByteArray ba = msg.toLocal8Bit();
-    const char *c_str2 = ba.data();
-    client->tcpSocket->write(c_str2);
-}
-
-void mykilobotexperiment::gotError(QAbstractSocket::SocketError err)
-{
-//    qDebug() << "got error";
-    QString strError = "unknown";
-    switch (err)
-    {
-        case 0:
-            strError = "Connection was refused";
-            break;
-        case 1:
-            strError = "Remote host closed the connection";
-            break;
-        case 2:
-            strError = "Host address was not found";
-            break;
-        case 5:
-            strError = "Connection timed out";
-            break;
-        default:
-            strError = "Unknown error";
-    }
-
-    qDebug() << err;
-}
 
 /* create the GUI as a separate frame in the main ARK window */
 QWidget *mykilobotexperiment::createGUI() {
@@ -251,49 +197,13 @@ void mykilobotexperiment::initialise(bool isResume) {
             qDebug() << "ERROR opening file "<< log_filename;
         }
 
-
-        // open file
-        if(log_file1.isOpen()) {
-            // if it was open close and re-open again later
-            // this erase the old content
-            log_file1.close();
-        }
         // log filename consist of the prefix and current date and time
         log_filename = log_filename_prefix + "_areapos_client_" + QDate::currentDate().toString("yyMMdd") + "_" + QTime::currentTime().toString("hhmmss") + ".txt";
-        log_file1.setFileName(log_filename);
-        // open the file
-        if(log_file1.open(QIODevice::WriteOnly)) {
-            qDebug() << "Log file " << log_file1.fileName() << " opened";
-            log_stream1.setDevice(&log_file1);
-//            log_stream1
-//                    << "time" << '\t'
-//                    << "id" << '\t'
-//                    << "positionX" << '\t'
-//                    << "positionY" << '\t'
-//                    << "colour" << '\t'
-//                    << "state" << '\n';
-            //Initial state
-            log_stream1 << this->time;
-            for(Area* a : dhtfEnvironment.areas)
-            {
-                log_stream1 << '\t'
-                            << a->id << '\t'
-                            << a->position.x() << '\t'
-                            << a->position.y() << '\t'
-                            << (a->type == HARD_TASK ? 1:0) << '\t'       /*hard red, soft blue*/
-                            << (a->completed == true ? 1:0);
-
-            }
-            log_stream1 << endl;
-        }
-        else {
-            qDebug() << "ERROR opening file "<< log_filename;
-        }
     }
 
     // if the checkbox for saving the images is checked
     if(saveImages) {
-        emit saveImage(QString("./images_client/dhtf_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
+        emit saveImage(QString("./images_client/LMCRW_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
     }
 
     // clear old drawings (e.g., from ID-identification)
@@ -308,9 +218,6 @@ void mykilobotexperiment::stopExperiment() {
     }
     if (log_file.isOpen()){
         log_file.close();
-    }
-    if (log_file1.isOpen()){
-        log_file1.close();
     }
 }
 
@@ -328,48 +235,10 @@ void mykilobotexperiment::run() {
 
 
     // Update Environment
-    dhtfEnvironment.time = (float)time;
-
-    // TODO : CHECK if buffer exchanging and upadtating of the environment is well done
-    // send buffer with READY areas
-//    if(dhtfEnvironment.receive_buffer.startsWith("I"))
-//    {
-//        qDebug() << "RECEIVED:" << dhtfEnvironment.receive_buffer;
-//        dhtfEnvironment.initialiseAreas();
-//        dhtfEnvironment.receive_buffer.clear();
-//    }
-
-//    if(dhtfEnvironment.receive_buffer.startsWith("A"))
-//    {
-//        qDebug() << "RECEIVED:" << dhtfEnvironment.receive_buffer;
-//        dhtfEnvironment.update();
-//        dhtfEnvironment.receive_buffer.clear();
-//    }
-
-    if( dhtfEnvironment.initialised == true || dhtfEnvironment.receive_buffer.startsWith("I") )
-    {
-        if(dhtfEnvironment.receive_buffer.startsWith("I"))
-            sendToServer("Received initialisation");
-
-        dhtfEnvironment.update();
-
-        // send buffer with READY areas
-        if( (dhtfEnvironment.send_buffer.startsWith("T")) && (qRound(this->time-last_ARK_message)*10.0f) >= ARK_message_period*10.0f )
-        {
-            last_ARK_message = this->time;
-            // WARNING: be carefull thant buffer is sent when is of active areas size + 1
-            sendToServer(dhtfEnvironment.send_buffer);
-            dhtfEnvironment.send_buffer.clear();
-        }
-    }
-
-    else if ( logExp && ((qRound(this->time-last_ARK_message)*10.0f) >= ARK_message_period*10.0f)  ) {
-        last_ARK_message = this->time;
-        sendToServer(QString("Missing initialisation"));
-    }
+    LMCRWEnvironment.time = (float)time;
 
 
-    // BROADCAST START SIGNAL
+    // BROADCAST START SIGNAL TO THE KILOBOTS
     if(this->time <= 2.0)
     {
         kilobot_broadcast message;
@@ -399,7 +268,7 @@ void mykilobotexperiment::run() {
         last_log = this->time;
         if(saveImages) {
             // qDebug() << "Saving Image";
-            emit saveImage(QString("./images_client/dhtf_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
+            emit saveImage(QString("./images_client/LMCRW_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
         }
         if(logExp)
         {
@@ -416,49 +285,11 @@ void mykilobotexperiment::run() {
             }
             log_stream << endl;
 
-            log_stream1 << this->time;
-            for(Area* a : dhtfEnvironment.areas)
-            {
-                log_stream1 << '\t'
-                            << a->id << '\t'
-                            << a->position.x() << '\t'
-                            << a->position.y() << '\t'
-                            << (a->type == HARD_TASK ? 1:0) << '\t'       /*hard red, soft blue*/
-                            << (a->completed == true ? 1:0);
-
-            }
-            log_stream1 << endl;
 
         }
     }
 
 
-    // save log for areas
-    if(logExp) {
-        if(dhtfEnvironment.saveLOG)
-        {
-            dhtfEnvironment.saveLOG = false;
-            qDebug() << "LOG_EXP: saving at " << this->time*10;
-
-
-            log_stream_areas
-                       << this->time << '\t'
-                       << dhtfEnvironment.completed_area->id << '\t'
-                       << dhtfEnvironment.completed_area->creation_time << '\t'
-                       << dhtfEnvironment.completed_area->completed_time << '\t'
-                       << int(dhtfEnvironment.completed_area->type) << '\t'
-                       << dhtfEnvironment.completed_area->kilobots_in_area.size();
-
-            for(int i=0; i<dhtfEnvironment.completed_area->kilobots_in_area.size(); i++)
-            {
-                log_stream_areas << '\t' <<dhtfEnvironment.completed_area->kilobots_in_area.at(i);
-            }
-
-            log_stream_areas << endl;
-        }
-
-
-    }
 }
 
 // Setup the Initial Kilobot Environment:
@@ -467,8 +298,8 @@ void mykilobotexperiment::run() {
 void mykilobotexperiment::setupInitialKilobotState(Kilobot kilobot_entity) {
 //    qDebug() << QString("in setup init kilobot state");
 
-    // assign all kilobot to environment DHTF
-    this->setCurrentKilobotEnvironment(&dhtfEnvironment);
+    // assign all kilobot to environment LMCRW
+    this->setCurrentKilobotEnvironment(&LMCRWEnvironment);
     kilobot_id k_id = kilobot_entity.getID();
 
     // create a necessary list and variable for correct message timing
@@ -477,43 +308,43 @@ void mykilobotexperiment::setupInitialKilobotState(Kilobot kilobot_entity) {
     }
 
     // this are used to solve a bug causing the app to crash after resetting
-    if(dhtfEnvironment.lastSent.size() < k_id+1) {
-        dhtfEnvironment.lastSent.resize(k_id+1);
+    if(LMCRWEnvironment.lastSent.size() < k_id+1) {
+        LMCRWEnvironment.lastSent.resize(k_id+1);
     }
-    if(dhtfEnvironment.kilobots_positions.size() < k_id+1) {
-        dhtfEnvironment.kilobots_positions.resize(k_id+1);
+    if(LMCRWEnvironment.kilobots_positions.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_positions.resize(k_id+1);
     }
-    if(dhtfEnvironment.kilobots_states.size() < k_id+1) {
-        dhtfEnvironment.kilobots_states.resize(k_id+1);
+    if(LMCRWEnvironment.kilobots_states.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_states.resize(k_id+1);
     }
-    if(dhtfEnvironment.kilobots_states_LOG.size() < k_id+1) {
-        dhtfEnvironment.kilobots_states_LOG.resize(k_id+1);
+    if(LMCRWEnvironment.kilobots_states_LOG.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_states_LOG.resize(k_id+1);
     }
-    if(dhtfEnvironment.kilobots_colours.size() < k_id+1) {
-        dhtfEnvironment.kilobots_colours.resize(k_id+1);
+    if(LMCRWEnvironment.kilobots_colours.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_colours.resize(k_id+1);
     }
 
 
 
-    dhtfEnvironment.lastSent[k_id] = dhtfEnvironment.minTimeBetweenTwoMsg;
+    LMCRWEnvironment.lastSent[k_id] = LMCRWEnvironment.minTimeBetweenTwoMsg;
 
     // TODO initialize kilobots location correctly
-    dhtfEnvironment.kilobots_positions[k_id] = kilobot_entity.getPosition();
-    dhtfEnvironment.kilobots_states[k_id] = RANDOM_WALK;
-    dhtfEnvironment.kilobots_states_LOG[k_id] = RANDOM_WALK;
-    dhtfEnvironment.kilobots_colours[k_id] = Qt::black;
+    LMCRWEnvironment.kilobots_positions[k_id] = kilobot_entity.getPosition();
+    LMCRWEnvironment.kilobots_states[k_id] = NOT_TARGET_FOUND;
+    LMCRWEnvironment.kilobots_states_LOG[k_id] = NOT_TARGET_FOUND;
+    LMCRWEnvironment.kilobots_colours[k_id] = Qt::black;
 
     KiloLog kLog(k_id, kilobot_entity.getPosition(), 0, kilobot_entity.getLedColour());
-    kLog.state=RANDOM_WALK;
+    kLog.state=NOT_TARGET_FOUND;
     kilobots[k_id] = kLog;
     // qDebug() << "ORIENTATION IS " << kilobots[k_id].orientation;
     if(!kilobots_ids.contains(k_id))
         kilobots_ids.append(k_id);
 
     double timeForAMessage = 0.05; // 50 ms each message
-    dhtfEnvironment.minTimeBetweenTwoMsg = kilobots_ids.size()*timeForAMessage/2.8;
-    dhtfEnvironment.lastSent[k_id] = dhtfEnvironment.minTimeBetweenTwoMsg;
-    // qDebug() << "Min time between two messages is" << dhtfEnvironment.minTimeBetweenTwoMsg;
+    LMCRWEnvironment.minTimeBetweenTwoMsg = kilobots_ids.size()*timeForAMessage/2.8;
+    LMCRWEnvironment.lastSent[k_id] = LMCRWEnvironment.minTimeBetweenTwoMsg;
+    // qDebug() << "Min time between two messages is" << LMCRWEnvironment.minTimeBetweenTwoMsg;
 
 }
 
@@ -528,7 +359,7 @@ void mykilobotexperiment::updateKilobotState(Kilobot kilobotCopy) {
         kilobot_colour k_colour = kilobotCopy.getLedColour();
         QPointF k_position = kilobotCopy.getPosition();
         double k_rotation = qRadiansToDegrees(qAtan2(-kilobotCopy.getVelocity().y(), kilobotCopy.getVelocity().x()));
-        kilobot_state k_state = dhtfEnvironment.kilobots_states[k_id];
+        kilobot_state k_state = LMCRWEnvironment.kilobots_states[k_id];
         kilobots[k_id].updateAllValues(k_id, k_position, k_rotation, k_colour, k_state);
     }
 }
@@ -536,22 +367,22 @@ void mykilobotexperiment::updateKilobotState(Kilobot kilobotCopy) {
 // Setup Environment:
 void mykilobotexperiment::setupEnvironments( ) {
 //    qDebug() << QString("in setup env");
-    dhtfEnvironment.reset();
+    LMCRWEnvironment.reset();
 }
 
+//WARNING : what is the goal of the GetFloorColor function?
 QColor mykilobotexperiment::GetFloorColor(int track_x, int track_y) {
 //    qDebug() << QString("in get floor color");
 
     QColor floorColour = Qt::white; // no resource
-    // paint the resources
-    for(Area* a : dhtfEnvironment.areas) {
-        if(a->isInside(QPointF(track_x,track_y))) {
-            floorColour = a->color;
-            break;
-        }
-        if(floorColour != Qt::white)
-            break;
+    QPoint env_point = QPoint(track_x,track_y);
+
+    if ( pow(env_point.x()-LMCRWEnvironment.vTarget.tPos.x(),2)+pow(env_point.y()-LMCRWEnvironment.vTarget.tPos.y(),2) <= (pow(LMCRWEnvironment.vTarget.tRadius,2)) )
+    {
+        floorColour = LMCRWEnvironment.vTarget.tColor;
     }
+
+    // paint the resources
 
     return floorColour;
 }
@@ -562,30 +393,14 @@ void mykilobotexperiment::plotEnvironment() {
     // clean image
     clearDrawingsOnRecordedImage();
 
+    // drawCircle
     // center, radius, color, thikness, text, dunno
-    // drawCircle(QPointF(1000,1000), (ARENA_SIZE*SCALING/2) - 100, QColor(Qt::red), 2, "try", false);
-    // drawCircle(QPointF(750,750), 735, QColor(Qt::yellow), 25, "center", true);
 
-    // arena scaled
-    std::vector<cv::Point> pos0 {Point(SHIFTX,SHIFTY), Point(SHIFTX,(ARENA_SIZE*SCALING)+SHIFTY)};
-    drawLine(pos0,Qt::blue, 5,"",false);
-    std::vector<cv::Point> pos1 {Point(SHIFTX,SHIFTY), Point((ARENA_SIZE*SCALING)+SHIFTX,SHIFTY)};
-    drawLine(pos1,Qt::blue, 5,"",false);
-    std::vector<cv::Point> pos2 {Point(SHIFTX,1000+SHIFTY), Point((ARENA_SIZE*SCALING)+SHIFTX,1000+SHIFTY)};
-    drawLine(pos2,Qt::blue, 5,"",false);
-    std::vector<cv::Point> pos3 {Point((ARENA_SIZE*SCALING)+SHIFTX,SHIFTY), Point((ARENA_SIZE*SCALING)+SHIFTX,1000+SHIFTY)};
-    drawLine(pos3,Qt::blue, 5,"",false);
+    //Draw the Arena
+     drawCircle(QPointF(ARENA_CENTER,ARENA_CENTER), 950, QColor(Qt::yellow), 25, "arena", false);
 
-
-    // arena - 2*Kilo_diameter
-    std::vector<cv::Point> bd0 {Point(SHIFTX+2*KILO_DIAMETER,SHIFTY+2*KILO_DIAMETER), Point(SHIFTX+2*KILO_DIAMETER,SHIFTY+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER)};
-    drawLine(bd0,Qt::yellow, 3,"",false);
-    std::vector<cv::Point> bd1 {Point(SHIFTX+2*KILO_DIAMETER,SHIFTY+2*KILO_DIAMETER), Point(SHIFTX+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER,SHIFTY+2*KILO_DIAMETER)};
-    drawLine(bd1,Qt::yellow, 3,"",false);
-    std::vector<cv::Point> bd2 {Point(SHIFTX+2*KILO_DIAMETER,SHIFTY+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER), Point(SHIFTX+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER,SHIFTY+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER)};
-    drawLine(bd2,Qt::yellow, 3,"",false);
-    std::vector<cv::Point> bd3 {Point(SHIFTX+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER,SHIFTY+2*KILO_DIAMETER), Point(SHIFTX+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER,SHIFTY+(ARENA_SIZE*SCALING)-2*KILO_DIAMETER)};
-    drawLine(bd3,Qt::yellow, 3,"",false);
+     //Draw the target
+      drawCircle(LMCRWEnvironment.vTarget.tPos, LMCRWEnvironment.vTarget.tRadius, LMCRWEnvironment.vTarget.tColor, 10, "target", false);
 
     // Draw some useful position : center + 4 corners
     QPoint k_center ((ARENA_CENTER*SCALING)+SHIFTX, (ARENA_CENTER*SCALING)+SHIFTY);
@@ -596,32 +411,19 @@ void mykilobotexperiment::plotEnvironment() {
     drawLine(xAx,Qt::black, 3,"",false);
     std::vector<cv::Point> yAx {Point((ARENA_SIZE*SCALING/2.0)+SHIFTX, SHIFTY), Point((ARENA_SIZE*SCALING/2.0)+SHIFTX, SHIFTY+(ARENA_SIZE*SCALING))};
     drawLine(yAx,Qt::black, 3,"",false);
-    // drawCircle(QPoint(0,0), 30.0, QColor(Qt::yellow), 15, "", false);
-    // drawCircle(QPoint(0,2.0*ARENA_CENTER), 30.0, QColor(Qt::yellow), 15, "", false);
-    // drawCircle(QPoint(2.0*ARENA_CENTER,0), 30.0, QColor(Qt::yellow), 15, "", false);
-    // drawCircle(QPoint(2.0*ARENA_CENTER,2.0*ARENA_CENTER), 30.0, QColor(Qt::yellow), 15, "", false);
+
+    // draw target
 
 
 
-    for(const Area* a : dhtfEnvironment.areas)
-    {
-
-        if(!a->completed)
-            drawCircle(a->position, a->radius, a->color, 3, std::to_string(a->id), false);
-        else
-            drawCircle(a->position, a->radius, Qt::transparent, 3, std::to_string(a->id), false);
-
-
-
-        // Draw circles on recorded images
-        // if(this->saveImages)
-        // {
-        //     if(!a->completed)
-        //         drawCircleOnRecordedImage(a->position, a->radius, a->color, 10, std::to_string(a->id));
-        //     else
-        //         drawCircleOnRecordedImage(a->position, a->radius, Qt::transparent, 10, std::to_string(a->id));
-        // }
-    }
+    // Draw circles on recorded images
+    // if(this->saveImages)
+    // {
+    //     if(!a->completed)
+    //         drawCircleOnRecordedImage(a->position, a->radius, a->color, 10, std::to_string(a->id));
+    //     else
+    //         drawCircleOnRecordedImage(a->position, a->radius, Qt::transparent, 10, std::to_string(a->id));
+    // }
 
 
     // Draw led on kilobots

@@ -1,5 +1,5 @@
-#ifndef ENVIRONMENT_H
-#define ENVIRONMENT_H
+#ifndef LMCRWENVIRONMENT_H
+#define LMCRWENVIRONMENT_H
 
 /**
  * Author: Luigi Feola
@@ -30,7 +30,7 @@
 #define SHIFTY 500 //cnr
 #define ARENA_CENTER 1000
 #define ARENA_SIZE 2000
-#define KILO_DIAMETER 66 //cnr
+#define KILO_DIAMETER 33 //cnr
 // #define KILO_DIAMETER 33 //sheffield
 
 typedef enum {
@@ -68,6 +68,16 @@ public:
     double time;
     bool saveLOG;
 
+
+    struct VirtualTarget
+    {
+        QPoint tPos;
+        int tRadius;
+        QColor tColor;
+    };
+
+    VirtualTarget vTarget;
+
 // signals and slots are used by qt to signal state changes to objects
 signals:
     void errorMessage(QString);
@@ -78,13 +88,8 @@ public slots:
 
 
 private:
-    struct vTarget
-    {
-        QPointF tPos;
-        float tRadius;
-        QColor tColor;
-    };
+
     double normAngle(double angle);
-    QVector2D VectorRotation2D (double angle, QVector2D vec);
-    QVector<int> proximity_sensor(QVector2D obstacle_direction, double kilo_rotation, int num_bit);
 };
+
+#endif //LMCRWENVIRONMENT_H

@@ -24,6 +24,11 @@ mykilobotenvironment::mykilobotenvironment(QObject *parent) : KilobotEnvironment
     this->saveLOG = false;
 
     // define environment:
+    vTarget.tPos = QPoint(ARENA_CENTER + 400,1000);
+    vTarget.tColor = Qt::red;
+    vTarget.tRadius = KILO_DIAMETER * 2;
+
+
     // call any functions to setup features in the environment (goals, homes locations and parameters).
     reset();
 }
@@ -61,30 +66,22 @@ void mykilobotenvironment::update() {
  */
 void mykilobotenvironment::updateVirtualSensor(Kilobot kilobot_entity) {
     // qDebug() << QString("In updateVirtualSensor");
+
     // update local arrays
     kilobot_id k_id = kilobot_entity.getID();
     this->kilobots_positions[k_id] = kilobot_entity.getPosition();
-
-    // qDebug() << QString("saving colours");
     // update kilobot led colour (indicates the internal state of the kb)
     lightColour kb_colour = kilobot_entity.getLedColour();
     if(kb_colour == lightColour::RED){
-        this->kilobots_colours[k_id] = Qt::red;     // kilobot in WAITING
-        // qDebug() << "ReeEEEEEEEEEEEEEEEEEEEEE " << k_id;
+        this->kilobots_colours[k_id] = Qt::red;     // kilobot passed directly over the target
     }
     else if(kb_colour == lightColour::BLUE){
-        this->kilobots_colours[k_id] = Qt::blue;    // kilobot in LEAVING
-        // qDebug() << "BLUEEEEEEEEEEEEEEEEEEEEE " << k_id;
+        this->kilobots_colours[k_id] = Qt::blue;    // kilobot with information about the target
     }
     else
     {
         this->kilobots_colours[k_id] = Qt::black;   // random walking
-        // qDebug() << "BLack****************** " << k_id;
     }
-
-
-
-    // check if inside
 
     // qDebug() <<QString("Kilobot %1 state is: %2").arg(k_id).arg(kilobots_states[k_id]);
     // qDebug() <<QString("Kilobot %1 LOG state is: %2").arg(k_id).arg(kilobots_states_LOG[k_id]);
@@ -103,14 +100,14 @@ void mykilobotenvironment::updateVirtualSensor(Kilobot kilobot_entity) {
         /* data has 3x24 bits divided as                             */
         /*   ID 10b    type 4b  data 10b     <- ARK msg              */
         /*  data[0]   data[1]   data[2]      <- kb msg               */
-        /* xxxx xxxx xxyy yyww wwww wwww     <- dhtf                 */
+        /* xxxx xxxx xxyy yyww wwww wwww     <- LMCRW                */
         /* x bits used for kilobot id                                */
         /* y bits used for type                                      */
         /* w bits used for TODO: for what?                           */
 
         kilobot_message message; // this is a 24 bits field not the original kb message
-        // make sure to start clean
-        message.id = 0;
+        // Prepare an empty ARK message
+        message.id = 511;
         message.type = 0;
         message.data = 0;
 

@@ -1,5 +1,5 @@
-#ifndef DHTFEXPERIMENT_H
-#define DHTFEXPERIMENTH
+#ifndef LMCRWEXPERIMENT_H
+#define LMCRWEXPERIMENTH
 
 #include "global.h"
 
@@ -12,10 +12,8 @@
 #include "kilobot.h"
 #include "kilobotexperiment.h"
 #include "kilobotenvironment.h"
-#include "dhtfEnvironment.h"
+#include "LMCRWEnvironment.h"
 
-// there are the file for the dhtf experiment
-#include "area.h"
 
 // OpenCV includes
 #include <opencv2/core/core.hpp>
@@ -44,7 +42,6 @@
 #include <QtMath>
 #include <QElapsedTimer>
 
-#include "clientStuff.h"
 
 using namespace cv;
 
@@ -88,16 +85,16 @@ public:
 }; /* end class kilo_log */
 
 /**
- * @brief mykilobotexperiment is where the dhtf experiment is defined and ARK templates area extended
+ * @brief mykilobotexperiment is where the LMCRW experiment is defined and ARK templates area extended
  * This create a separate window in the ARK GUI where one can set up experiments variables.
 */
-class DHTFEXPSHARED_EXPORT mykilobotexperiment : public KilobotExperiment
+class LMCRWEXPSHARED_EXPORT mykilobotexperiment : public KilobotExperiment
 {
     Q_OBJECT
 
 public:
     mykilobotexperiment();
-    virtual ~mykilobotexperiment() {delete client;}
+    virtual ~mykilobotexperiment() {}
 
     QWidget *createGUI();
 
@@ -123,17 +120,8 @@ public slots:
 
     QColor GetFloorColor(int x, int y);
 
-    /*************************************************************************************************/
-    /*****************SOCKET PART*********************************************************************/
-    /*************************************************************************************************/
-    void setStatus(bool newStatus);
-    void receivedSomething(QString msg);
-    void gotError(QAbstractSocket::SocketError err);
 
 private slots:
-    void on_pushButton_send_clicked();
-    void on_pushButton_connect_clicked(){client->connect2host();}
-    void on_pushButton_disconnect_clicked();
 
 private:
     void updateKilobotState(Kilobot kilobot_entity);
@@ -141,11 +129,10 @@ private:
 
     //
     void setupEnvironments();
-    void sendToServer(QString msg);
     void plotEnvironment();
 
     //
-    mykilobotenvironment dhtfEnvironment;
+    mykilobotenvironment LMCRWEnvironment;
     QTime m_elapsed_time;
 
 
@@ -153,19 +140,14 @@ private:
     bool saveImages;
     int savedImagesCounter;
     bool logExp;
+    QString log_filename_prefix = "log_LMCRW";
     QFile log_file_areas;
-    QString log_filename_prefix = "log_dhtf";
     QTextStream log_stream_areas;    
     QFile log_file;
-    QFile log_file1;
     QTextStream log_stream;
-    QTextStream log_stream1;
 
     float log_period = 1.0;
     float last_log = 0.0;
-
-    float ARK_message_period = 2.0;
-    float last_ARK_message = 0.0;
 
     float env_update_period = 2.0;
     float last_env_update = 0.0;
@@ -175,8 +157,7 @@ private:
     QVector <KiloLog> kilobots;
 
 
-    ClientStuff *client;
 }; /* end class mykilobotexperiment */
 
 
-#endif // DHTFEXPERIMENT_H
+#endif // LMCRWEXPERIMENT_H
