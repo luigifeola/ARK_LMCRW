@@ -16,6 +16,55 @@
 #include <QtMath>
 #include <QColor>
 
+namespace  {
+    const double reachable_distance = (ARENA_SIZE/2) - (2.0*KILO_DIAMETER);
+    const int num_sectors = 6;
+    const QVector2D left_direction (1.0,0.0);
+}
+
+double mykilobotenvironment::normAngle(double angle){
+    while (angle > 180) angle = angle - 360;
+    while (angle < -180) angle = angle + 360;
+    return angle;
+}
+
+QVector2D mykilobotenvironment::VectorRotation2D (double angle, QVector2D vec){
+    // qDebug() << "2D Rotation";
+    QVector2D rotated_vector;
+    double kx = (cos(angle)* vec.x()) + (-1.0*sin(angle) * vec.y());
+    double ky = (sin(angle) * vec.x()) + (cos(angle) * vec.y());
+    rotated_vector.setX(kx);
+    rotated_vector.setY(ky);
+    return rotated_vector;
+}
+
+QVector<int> mykilobotenvironment::proximity_sensor(QVector2D obstacle_direction, double kilo_rotation, int num_bit){
+    double sector = M_PI_2 / (num_bit/2.0);
+    QVector<int> proximity;
+
+    // qDebug() << "kilo_ori" << qRadiansToDegrees(kilo_rotation);
+    for(int i=0; i<num_bit; i++)
+    {
+        QVector2D sector_dir_start = VectorRotation2D((kilo_rotation+M_PI_2 - i * sector), left_direction);
+        QVector2D sector_dir_end = VectorRotation2D((kilo_rotation+M_PI_2 - (i+1) * sector), left_direction);
+
+//         qDebug() << "wall-dir" << obstacle_direction;
+//         qDebug() << "a-dir" << sector_dir_start;
+//         qDebug() << "b-dir" << sector_dir_end;
+
+        if( QVector2D::dotProduct(obstacle_direction, sector_dir_start) >=0 ||
+            QVector2D::dotProduct(obstacle_direction, sector_dir_end) >=0    )
+        {
+            proximity.push_back(0);
+        }
+        else{
+            proximity.push_back(1);
+        }
+    }
+
+    return proximity;
+}
+
 mykilobotenvironment::mykilobotenvironment(QObject *parent) : KilobotEnvironment(parent) {
     // environment specifications
     // this->ArenaX = 0.45;
@@ -23,11 +72,36 @@ mykilobotenvironment::mykilobotenvironment(QObject *parent) : KilobotEnvironment
 
     this->saveLOG = false;
 
-    // define environment:
-    vTarget.tPos = QPoint(ARENA_CENTER + 400,1000);
-    vTarget.tColor = Qt::red;
-    vTarget.tRadius = KILO_DIAMETER * 2;
+    std::default_random_engine re;
+    const int kSeed = 349530199;
+    re.seed(kSeed);
+//    qDebug() << "qrand()" << qrand();
+//    re.seed(qrand());
 
+    // define environment:
+    vTarget.tRadius = KILO_DIAMETER;
+    vTarget.tColor = Qt::red;
+
+
+
+
+    QPoint k_center((ARENA_CENTER + SHIFTX), (ARENA_CENTER + SHIFTY));
+
+    //            std::uniform_int_distribution<int> distr_x(7.0*CM_TO_PIXEL, ARENA_SIZE/2 - 10*CM_TO_PIXEL);
+    std::uniform_int_distribution<int> distr_x(0, reachable_distance - vTarget.tRadius);
+    int distance = distr_x(re);
+    qDebug() << "reachable_distance:" << reachable_distance;
+    qDebug() << "distance:" << distance;
+//    int distance = 650;
+
+//    std::uniform_real_distribution<double> uniform_angle(-1.0, 1.0);
+    std::uniform_real_distribution<double> uniform_angle(-1.0, 1.0);
+    double theta = M_PI * uniform_angle(re);
+    qDebug() << "theta:" << theta << "degrees:" << qRadiansToDegrees(theta);
+
+
+//    vTarget.tPos = QPoint(ARENA_CENTER + SHIFTX + 400,1000);
+    vTarget.tPos = k_center + QPoint(distance * cos(theta), distance * sin(theta));
 
     // call any functions to setup features in the environment (goals, homes locations and parameters).
     reset();
@@ -44,6 +118,10 @@ void mykilobotenvironment::reset(){
 
     kilobots_positions.clear();
     kilobots_colours.clear();
+    kilobots_in_collision.clear();
+
+    isCommunicationTime = false;
+    lastTransitionTime = this->time;
 
 
 
@@ -72,26 +150,83 @@ void mykilobotenvironment::updateVirtualSensor(Kilobot kilobot_entity) {
     this->kilobots_positions[k_id] = kilobot_entity.getPosition();
     // update kilobot led colour (indicates the internal state of the kb)
     lightColour kb_colour = kilobot_entity.getLedColour();
-    if(kb_colour == lightColour::RED){
-        this->kilobots_colours[k_id] = Qt::red;     // kilobot passed directly over the target
-    }
-    else if(kb_colour == lightColour::BLUE){
-        this->kilobots_colours[k_id] = Qt::blue;    // kilobot with information about the target
-    }
-    else
+
+    if(!kilobots_RED_check[k_id])
     {
-        this->kilobots_colours[k_id] = Qt::black;   // random walking
+        if(kb_colour == lightColour::RED && qRound(this->time*10.0f) >= 1.0f*10.0f ){
+            this->kilobots_colours[k_id] = Qt::red;    // kilobot with information about the target
+
+            kilobots_colours_time_check[k_id] = 10.0;
+
+            if(this->kilobots_states[k_id] == NOT_TARGET_FOUND)
+            {
+                this->kilobots_states[k_id] = TARGET_COMMUNICATED;
+                kilobots_RED_timer[k_id] = this->time;
+                if(kilobots_sync_time[k_id] != -1)
+                    qDebug() << "ERROR!!! SHOULD BE -1";
+                kilobots_sync_time[k_id] = this->time;
+                qDebug() << "New info for kID:" << k_id << " at time " << kilobots_sync_time[k_id];
+            }
+            else if(this->kilobots_states[k_id] == TARGET_COMMUNICATED &&
+                    qRound( (this->time - kilobots_RED_timer[k_id])*10.0f) >= 20.0f*10.0f)
+            {
+                kilobots_RED_check[k_id] = true;
+                qDebug() << "Always red kilobot:" << k_id;
+            }
+        }
+        else
+        {
+            this->kilobots_colours[k_id] = Qt::black;   // random walking
+            kilobots_RED_timer[k_id] = this->time;
+
+            if (this->kilobots_states[k_id] == TARGET_COMMUNICATED)
+            {
+                if (kilobots_colours_time_check[k_id] == 0.0f)
+                {
+                    this->kilobots_states[k_id] = NOT_TARGET_FOUND;
+                    kilobots_sync_time[k_id] = -1;
+                    qDebug() << "Wrong colour assignment for kilobot: " << k_id;
+                    kilobots_colours_time_check[k_id] = 10.0f;
+                }
+                else
+                    kilobots_colours_time_check[k_id] -= 1.0f;
+            }
+
+        }
     }
 
-    // qDebug() <<QString("Kilobot %1 state is: %2").arg(k_id).arg(kilobots_states[k_id]);
-    // qDebug() <<QString("Kilobot %1 LOG state is: %2").arg(k_id).arg(kilobots_states_LOG[k_id]);
+//    if(kb_colour == lightColour::RED || this->kilobots_colours[k_id] == Qt::red){
+//        this->kilobots_colours[k_id] = Qt::red;     // kilobot passed directly over the target
+//    }
+//    else if(kb_colour == lightColour::GREEN && this->kilobots_colours[k_id] != Qt::red){
+//        this->kilobots_colours[k_id] = Qt::green;    // kilobot with information about the target
+//        this->kilobots_states[k_id] = TARGET_COMMUNICATED;
+//    }
+//    else if(this->kilobots_colours[k_id] != Qt::red)
+//    {
+//        this->kilobots_colours[k_id] = Qt::black;   // random walking
+//    }
 
 
+    bool insideTarget = (pow(kilobots_positions[k_id].x() - vTarget.tPos.x(),2) + pow(kilobots_positions[k_id].y()-vTarget.tPos.y(),2))
+                        <= (pow(vTarget.tRadius,2));
+    if(insideTarget)
+    {
+//        qDebug() << k_id << " is inside the target!!!!";
+        this->kilobots_states[k_id] = TARGET_FOUND;
+        if(kilobots_fpt[k_id] == -1)
+        {
+            kilobots_fpt[k_id] = this->time;
+            if(kilobots_sync_time[k_id] == -1)
+                kilobots_sync_time[k_id] = this->time;
+            qDebug() << "Target found for kID:" << k_id << " at time " << this->time;
+        }
+    }
 
     // qDebug() << QString("Sending message");
     // now we have everything up to date and everything we need
     // then if it is time to send the message to the kilobot send info to the kb
-    if(this->time - this->lastSent[k_id] > minTimeBetweenTwoMsg){
+    if(!this->isCommunicationTime && this->time - this->lastSent[k_id] > minTimeBetweenTwoMsg){
         // send if
         // not_red + inside
 
@@ -108,11 +243,11 @@ void mykilobotenvironment::updateVirtualSensor(Kilobot kilobot_entity) {
         kilobot_message message; // this is a 24 bits field not the original kb message
         // Prepare an empty ARK message
         message.id = 511;
-        message.type = 0;
+        message.type = 1;
         message.data = 0;
 
 
-        if( (kilobots_states[k_id] == TARGET_FOUND) && kilobots_colours[k_id] != Qt::red)
+        if(kilobots_states[k_id] == TARGET_FOUND)
         {
             message.id = k_id;
 
@@ -121,9 +256,52 @@ void mykilobotenvironment::updateVirtualSensor(Kilobot kilobot_entity) {
             emit transmitKiloState(message);
         }
 
+        /*******************************************************************************/
+        /*******************WALL AVOIDANCE**********************************************/
+        /*******************************************************************************/
+        // store kb rotation toward the center if the kb is too close to the border
+        // this is used to avoid that the kb gets stuck in the wall
+        uint8_t proximity_decimal;  // 0 no turn
 
-//        else
-//            qDebug() << QString("NOT need to send a message to kilobot %1").arg(k_id) << endl;
+        QPoint k_center ((ARENA_CENTER+SHIFTX), (ARENA_CENTER+SHIFTY));
+        // get position translated w.r.t. center of arena
+        QVector2D k_pos = QVector2D(this->kilobots_positions[k_id]);
+
+        bool colliding_backup = kilobots_in_collision[k_id];
+        kilobots_in_collision[k_id] = pow(k_pos.x()-k_center.x(),2)+pow(k_pos.y()-k_center.y(),2) > (pow(reachable_distance,2));
+
+        // get orientation (from velocity) in radians in [-3.14,3.14]
+        QVector2D k_ori = QVector2D(kilobot_entity.getVelocity());
+        k_ori.setX(k_ori.x()*10);
+        k_ori.setY(k_ori.y()*10);
+        // qDebug() << "Orientation: " << normAngle( qRadiansToDegrees(qAtan2(-k_ori.y(), k_ori.x())) );
+
+        double k_rotation = qAtan2(-k_ori.y(), k_ori.x());
+//        qDebug() << "orientation: " << normAngle( qRadiansToDegrees(k_rotation) );  //angolo in [-180, 180] gradi
+
+        if(kilobots_in_collision[k_id])
+        {
+            double collision_angle = qAtan2(-1.0*(k_pos.y()-k_center.y()) , k_pos.x()-k_center.x());
+            QVector2D collision_direction = QVector2D(reachable_distance*qCos(collision_angle+M_PI),reachable_distance*qSin(collision_angle+M_PI)).normalized();
+
+//            qDebug() << "collision angle: " << qRadiansToDegrees(collision_angle) ;
+//            qDebug() << "normalized" << collision_direction.normalized();
+//            qDebug() << "direction rotated" << collision_direction;
+            QVector<int> proximity = proximity_sensor(collision_direction, k_rotation, num_sectors);
+            proximity_decimal = std::accumulate(proximity.begin(), proximity.end(), 0, [](int x, int y) { return (x << 1) + y; });
+
+///**************Print collisions!!*/
+//            if(!colliding_backup && colliding_backup != kilobots_in_collision[k_id] && proximity_decimal!=0)
+//            {
+//                qDebug() << this->time << ", " << k_id << " COLLIDING! -> " << proximity;
+//            }
+            message.id = k_id;
+            message.type = 2;
+            message.data = proximity_decimal;
+
+            lastSent[k_id] = this->time;
+            emit transmitKiloState(message);
+        }
 
 
     }

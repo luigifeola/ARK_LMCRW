@@ -24,7 +24,8 @@
 #include <QFile>
 #include <QDir>
 
-#define STOP_AFTER 1800
+#define STOP_AFTER 1810
+//#define STOP_AFTER 310
 
 // return pointer to interface!
 // mykilobotexperiment can and should be completely hidden from the application
@@ -60,42 +61,15 @@ QWidget *mykilobotexperiment::createGUI() {
 
     // add check box for saving the images
     QCheckBox *saveImages_ckb = new QCheckBox("Record experiment");
-    saveImages_ckb->setChecked(true);  // start as not checked
+    saveImages_ckb->setChecked(true);  // start as checked
     lay->addWidget(saveImages_ckb);
     toggleSaveImages(saveImages_ckb->isChecked());
 
     // add check box for logging the experiment
     QCheckBox *logExp_ckb = new QCheckBox("Log experiment");
-    logExp_ckb->setChecked(true);   // start as not checked
+    logExp_ckb->setChecked(true);   // start as checked
     lay->addWidget(logExp_ckb);
     toggleLogExp(logExp_ckb->isChecked());
-
-    QGroupBox * socketpart = new QGroupBox(tr("Sync field"));
-    QVBoxLayout *layout2 = new QVBoxLayout;
-    socketpart->setLayout(layout2);
-
-    // add QPushButton to client for connecting socket
-    QPushButton *connect_button = new QPushButton("Connect to server");
-    connect_button->setStyleSheet("color: rgb(0, 0, 255)");
-    layout2->addWidget(connect_button);
-
-    // add QPushButton to client to send buffer
-    QPushButton *send_some = new QPushButton("Send to server");
-    send_some->setStyleSheet("color: rgb(0, 100, 0)");
-    layout2->addWidget(send_some);
-
-    // add line edit to test exchanged messages
-//    QLineEdit* bufferLineEdit = new QLineEdit;
-//    bufferLineEdit->setPlaceholderText("buffer content");
-//    bufferLineEdit->setFocus();
-    bufferLineEdit->setObjectName(QStringLiteral("bufferLineEdit"));
-    layout2->addWidget(bufferLineEdit);
-
-    lay->addWidget(socketpart);
-
-
-    connect(connect_button, SIGNAL(clicked(bool)),this, SLOT(on_pushButton_connect_clicked()));
-    connect(send_some, SIGNAL(clicked(bool)),this, SLOT(on_pushButton_send_clicked()));
 
     connect(saveImages_ckb, SIGNAL(toggled(bool)),this, SLOT(toggleSaveImages(bool)));
     connect(logExp_ckb, SIGNAL(toggled(bool)),this, SLOT(toggleLogExp(bool)));
@@ -131,30 +105,7 @@ void mykilobotexperiment::initialise(bool isResume) {
     // init log file operations
     // if the log checkmark is marked then save the logs
     if(logExp) {
-        /********************************LOG EXPERIMENT***************************************************************************/
-        // open file
-        if(log_file_areas.isOpen()) {
-            // if it was open close and re-open again later
-            // this erase the old content
-            log_file_areas.close();
-        }
-        // log filename consist of the prefix and current date and time
-        QString log_filename = log_filename_prefix + "_completedAreas_client_" + QDate::currentDate().toString("yyMMdd") + "_" + QTime::currentTime().toString("hhmmss") + ".txt";
-        log_file_areas.setFileName(log_filename);
-        // open the file
-        if(log_file_areas.open(QIODevice::WriteOnly)) {
-            qDebug() << "Log file " << log_file_areas.fileName() << " opened";
-            log_stream_areas.setDevice(&log_file_areas);
-            log_stream_areas
-                    << "time" << '\t'
-                    << "id" << '\t'
-                    << "creation" << '\t'
-                    << "conclusion" << '\t'
-                    <<"type" << '\t'
-                    <<"kilo_on_top" << '\n';
-        } else {
-            qDebug() << "ERROR opening file "<< log_filename;
-        }
+
 
 
         /********************************LOG FOR VIDEO***************************************************************************/
@@ -165,7 +116,7 @@ void mykilobotexperiment::initialise(bool isResume) {
             log_file.close();
         }
         // log filename consist of the prefix and current date and time
-        log_filename = log_filename_prefix + "_kilopos_client_" + QDate::currentDate().toString("yyMMdd") + "_" + QTime::currentTime().toString("hhmmss") + ".txt";
+        QString log_filename = log_filename_prefix + "_kilopos.txt";
         log_file.setFileName(log_filename);
         // open the file
         if(log_file.open(QIODevice::WriteOnly)) {
@@ -197,13 +148,71 @@ void mykilobotexperiment::initialise(bool isResume) {
             qDebug() << "ERROR opening file "<< log_filename;
         }
 
+        // open file
+        if(log_file1.isOpen()) {
+            // if it was open close and re-open again later
+            // this erase the old content
+            log_file1.close();
+        }
         // log filename consist of the prefix and current date and time
-        log_filename = log_filename_prefix + "_areapos_client_" + QDate::currentDate().toString("yyMMdd") + "_" + QTime::currentTime().toString("hhmmss") + ".txt";
+        log_filename = log_filename_prefix + "_targetpos.txt";
+        log_file1.setFileName(log_filename);
+        // open the file
+        if(log_file1.open(QIODevice::WriteOnly)) {
+            qDebug() << "Log file " << log_file1.fileName() << " opened";
+            log_stream1.setDevice(&log_file1);
+//            log_stream1
+//                    << "time" << '\t'
+//                    << "id" << '\t'
+//                    << "positionX" << '\t'
+//                    << "positionY" << '\t'
+//                    << "colour" << '\t'
+//                    << "state" << '\t'
+//                    << "kilobots_in_area" << '\n';
+            //Initial state
+            log_stream1 << LMCRWEnvironment.vTarget.tPos.x() << '\t'
+                        << LMCRWEnvironment.vTarget.tPos.y() << '\t'
+                        << LMCRWEnvironment.vTarget.tRadius << '\n';
+        }
+        else {
+            qDebug() << "ERROR opening file "<< log_filename;
+        }
+
+        /**************************************************************************************/
+        /**LOG for first passage time & convergence time***************************************/
+        /**************************************************************************************/
+        // open file
+        if(log_fileTime.isOpen()) {
+            // if it was open close and re-open again later
+            // this erase the old content
+            log_fileTime.close();
+        }
+        // log filename consist of the prefix and current date and time
+        log_filename = log_filename_prefix + "_time_results.txt";
+        log_fileTime.setFileName(log_filename);
+
+        // open the file
+        if(log_fileTime.open(QIODevice::WriteOnly)) {
+            qDebug() << "Log file " << log_fileTime.fileName() << " opened";
+            log_streamTime.setDevice(&log_fileTime);
+//            log_streamTime
+//                    << "time" << '\t'
+//                    << "id" << '\t'
+//                    << "positionX" << '\t'
+//                    << "positionY" << '\t'
+//                    << "colour" << '\t'
+//                    << "state" << '\t'
+//                    << "kilobots_in_area" << '\n';
+        }
+        else {
+            qDebug() << "ERROR opening file "<< log_filename;
+        }
+
     }
 
     // if the checkbox for saving the images is checked
     if(saveImages) {
-        emit saveImage(QString("./images_client/LMCRW_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
+        emit saveImage(QString("./images/LMCRW_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
     }
 
     // clear old drawings (e.g., from ID-identification)
@@ -212,22 +221,39 @@ void mykilobotexperiment::initialise(bool isResume) {
 
 void mykilobotexperiment::stopExperiment() {
 
-    //Close Log file
-    if (log_file_areas.isOpen()){
-        log_file_areas.close();
-    }
     if (log_file.isOpen()){
         log_file.close();
+    }
+    //Close Log file
+    if (log_file1.isOpen()){
+        log_file1.close();
+    }
+    //Close Log file
+    if (log_fileTime.isOpen()){
+        log_fileTime.close();
     }
 }
 
 void mykilobotexperiment::run() {
     //qDebug() << QString("in run");
 
+
     this->time=m_elapsed_time.elapsed()/1000.0; // time in seconds
 
     // stop after given time
     if(this->time >= STOP_AFTER) {
+
+        // LOG fpt and sync_time
+        for(int i=0; i<LMCRWEnvironment.kilobots_sync_time.size();i++)
+        {
+            qDebug() << "kID:" << i << " sync_time:" << LMCRWEnvironment.kilobots_sync_time[i] << " fpt:" << LMCRWEnvironment.kilobots_fpt[i];
+
+            log_streamTime << i << '\t'
+                           << LMCRWEnvironment.kilobots_fpt[i] << '\t'
+                           << LMCRWEnvironment.kilobots_sync_time[i] << '\n';
+        }
+
+
         // close the experiment
         this->stopExperiment();
         emit(experimentComplete());
@@ -238,12 +264,45 @@ void mykilobotexperiment::run() {
     LMCRWEnvironment.time = (float)time;
 
 
-    // BROADCAST START SIGNAL TO THE KILOBOTS
+    // Broadcast START signal and LMCRW parameters to the kilobots
     if(this->time <= 2.0)
     {
         kilobot_broadcast message;
-        message.type = 1;
+        message.type = (int)START;
+        message.data.resize(2);
+        message.data[0] = 9;    //rho parameter
+        message.data[1] = 20;   //alpha parameter
+//        qDebug() << "Sending alpha: " << message.data[1] << " rho: " << message.data[0] << "\n";
         emit broadcastMessage(message);
+    }
+
+    if(true)
+    {
+        // switch between communication time and exploration time
+        if(!LMCRWEnvironment.isCommunicationTime && LMCRWEnvironment.exploration_time <= this->time - LMCRWEnvironment.lastTransitionTime)
+        {
+            LMCRWEnvironment.isCommunicationTime = true;
+            LMCRWEnvironment.lastTransitionTime = this->time;
+            kilobot_broadcast message;
+            message.type = (int)COMMUNICATION;
+            emit broadcastMessage(message);
+        }
+        else if(LMCRWEnvironment.isCommunicationTime && LMCRWEnvironment.communication_time <= this->time - LMCRWEnvironment.lastTransitionTime)
+        {
+            LMCRWEnvironment.isCommunicationTime = false;
+            LMCRWEnvironment.lastTransitionTime = this->time;
+            kilobot_broadcast message;
+            message.type = (int)STOP_COMMUNICATION;
+            emit broadcastMessage(message);
+        }
+
+        // emit continuosly the "COMMUNICATION" or "sSTOP_COMMUNICATION" message
+        // do this few times per second to avoid interferences
+        if(uint(this->time*10)%10 == 0) {
+            kilobot_broadcast message;
+            message.type = LMCRWEnvironment.isCommunicationTime?(int)COMMUNICATION:(int)STOP_COMMUNICATION;
+            emit broadcastMessage(message);
+        }
     }
 
     // update kilobots states
@@ -268,7 +327,7 @@ void mykilobotexperiment::run() {
         last_log = this->time;
         if(saveImages) {
             // qDebug() << "Saving Image";
-            emit saveImage(QString("./images_client/LMCRW_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
+            emit saveImage(QString("./images/LMCRW_%1.jpg").arg(savedImagesCounter++, 5, 10, QChar('0')));
         }
         if(logExp)
         {
@@ -323,6 +382,33 @@ void mykilobotexperiment::setupInitialKilobotState(Kilobot kilobot_entity) {
     if(LMCRWEnvironment.kilobots_colours.size() < k_id+1) {
         LMCRWEnvironment.kilobots_colours.resize(k_id+1);
     }
+    if(LMCRWEnvironment.kilobots_in_collision.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_in_collision.resize(k_id+1);
+    }
+
+
+    if(LMCRWEnvironment.kilobots_fpt.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_fpt.resize(k_id+1);
+        LMCRWEnvironment.kilobots_fpt.fill(-1);
+    }
+    if(LMCRWEnvironment.kilobots_sync_time.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_sync_time.resize(k_id+1);
+        LMCRWEnvironment.kilobots_sync_time.fill(-1);
+    }
+    if(LMCRWEnvironment.kilobots_colours_time_check.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_colours_time_check.resize(k_id+1);
+        LMCRWEnvironment.kilobots_colours_time_check.fill(0);
+    }
+    if(LMCRWEnvironment.kilobots_RED_check.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_RED_check.resize(k_id+1);
+        LMCRWEnvironment.kilobots_RED_check.fill(0);
+    }
+    if(LMCRWEnvironment.kilobots_RED_timer.size() < k_id+1) {
+        LMCRWEnvironment.kilobots_RED_timer.resize(k_id+1);
+        LMCRWEnvironment.kilobots_RED_timer.fill(false);
+    }
+
+
 
 
 
@@ -333,6 +419,7 @@ void mykilobotexperiment::setupInitialKilobotState(Kilobot kilobot_entity) {
     LMCRWEnvironment.kilobots_states[k_id] = NOT_TARGET_FOUND;
     LMCRWEnvironment.kilobots_states_LOG[k_id] = NOT_TARGET_FOUND;
     LMCRWEnvironment.kilobots_colours[k_id] = Qt::black;
+    LMCRWEnvironment.kilobots_in_collision[k_id] = false;
 
     KiloLog kLog(k_id, kilobot_entity.getPosition(), 0, kilobot_entity.getLedColour());
     kLog.state=NOT_TARGET_FOUND;
@@ -393,28 +480,42 @@ void mykilobotexperiment::plotEnvironment() {
     // clean image
     clearDrawingsOnRecordedImage();
 
-    // drawCircle
-    // center, radius, color, thikness, text, dunno
 
-    //Draw the Arena
-     drawCircle(QPointF(ARENA_CENTER,ARENA_CENTER), 950, QColor(Qt::yellow), 25, "arena", false);
+//    //Draw the Arena
+//    drawCircle(QPointF(ARENA_CENTER+SHIFTX,ARENA_CENTER+SHIFTY), ARENA_SIZE/2, QColor(Qt::yellow), 10, "", false);
 
-     //Draw the target
-      drawCircle(LMCRWEnvironment.vTarget.tPos, LMCRWEnvironment.vTarget.tRadius, LMCRWEnvironment.vTarget.tColor, 10, "target", false);
+    //Draw the reachable position
+    drawCircle(QPointF(ARENA_CENTER+SHIFTX,ARENA_CENTER+SHIFTY), ((ARENA_SIZE/2) - (2.0*KILO_DIAMETER)), QColor(Qt::red), 5, "", false);
+    //Draw the target
+    drawCircle(LMCRWEnvironment.vTarget.tPos, LMCRWEnvironment.vTarget.tRadius, LMCRWEnvironment.vTarget.tColor, 10, "", false);
 
-    // Draw some useful position : center + 4 corners
-    QPoint k_center ((ARENA_CENTER*SCALING)+SHIFTX, (ARENA_CENTER*SCALING)+SHIFTY);
-    drawCircle(QPoint(k_center.x(),k_center.y()), 10.0, QColor(Qt::black), 10, "", false);
+    /**
+     * Draw some useful position
+    **/
 
-    // x and y axis
-    std::vector<cv::Point> xAx {Point(SHIFTX, (ARENA_SIZE*SCALING/2.0)+SHIFTY), Point(SHIFTX+(ARENA_SIZE*SCALING), (ARENA_SIZE*SCALING/2.0)+SHIFTY)};
-    drawLine(xAx,Qt::black, 3,"",false);
-    std::vector<cv::Point> yAx {Point((ARENA_SIZE*SCALING/2.0)+SHIFTX, SHIFTY), Point((ARENA_SIZE*SCALING/2.0)+SHIFTX, SHIFTY+(ARENA_SIZE*SCALING))};
-    drawLine(yAx,Qt::black, 3,"",false);
+    // Center
+//    QPoint k_center ((ARENA_CENTER+SHIFTX), (ARENA_CENTER+SHIFTY));
+//    drawCircle(QPoint(k_center.x(),k_center.y()), 10.0, QColor(Qt::black), 10, "", false);
 
-    // draw target
+    /* x and y axis */
+//    std::vector<cv::Point> xAx {Point(SHIFTX, ARENA_SIZE/2+SHIFTY), Point(ARENA_SIZE+SHIFTX, ARENA_SIZE/2+SHIFTY)};
+//    drawLine(xAx,Qt::black, 2,"",false);
+//    std::vector<cv::Point> yAx {Point((ARENA_SIZE/2+SHIFTX), SHIFTY), Point((ARENA_SIZE/2)+SHIFTX, ARENA_SIZE+SHIFTY)};
+//    drawLine(yAx,Qt::black, 2,"",false);
 
+    /* Draw reachable distance */
+//    std::vector<cv::Point> reachable_segment {cv::Point(ARENA_CENTER+SHIFTX,ARENA_CENTER+SHIFTY), cv::Point(((ARENA_SIZE) - (3.0/2.0*KILO_DIAMETER))+SHIFTX , ARENA_CENTER+SHIFTY)};
+//    drawLine(reachable_segment,Qt::black, 5,"",false);
 
+//    QPoint k_reachable (((ARENA_SIZE) - (3.0/2.0*KILO_DIAMETER))+SHIFTX, (ARENA_CENTER+SHIFTY));
+//    drawCircle(QPoint(k_reachable.x(),k_reachable.y()), 20.0, QColor(Qt::yellow), 15, "", false);
+
+    /*collision segment*/
+//    int reachable_distance = ((ARENA_SIZE) - (3.0/2.0*KILO_DIAMETER))+SHIFTX - (ARENA_CENTER+SHIFTX);
+//    double coll_x = reachable_distance * qCos(-0.477013) + k_center.x();
+//    double coll_y = -1.0 * reachable_distance * qSin(-0.477013) + k_center.y();
+//    std::vector<cv::Point> collision_segment {cv::Point(ARENA_CENTER+SHIFTX,ARENA_CENTER+SHIFTY), cv::Point(coll_x,coll_y)};
+//    drawLine(collision_segment,Qt::black, 5,"collision",false);
 
     // Draw circles on recorded images
     // if(this->saveImages)

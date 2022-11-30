@@ -26,11 +26,11 @@
 #define SCALING 0.5
 // #define SHIFTX 0 //sheffield
 // #define SHIFTY 1000 //sheffield
-#define SHIFTX 500 //cnr
-#define SHIFTY 500 //cnr
-#define ARENA_CENTER 1000
-#define ARENA_SIZE 2000
-#define KILO_DIAMETER 33 //cnr
+#define SHIFTX 50 //cnr
+#define SHIFTY 50 //cnr
+#define ARENA_SIZE 1875
+#define ARENA_CENTER ARENA_SIZE/2
+#define KILO_DIAMETER 66 //cnr
 // #define KILO_DIAMETER 33 //sheffield
 
 typedef enum {
@@ -57,12 +57,26 @@ public:
     QVector<kilobot_state> kilobots_states_LOG;
     QVector<QPointF> kilobots_positions;    // list of all kilobots positions
     QVector<QColor> kilobots_colours;  // list of all kilobots led colours, the led indicate the state of the kilobot
+    QVector<double> kilobots_colours_time_check;  // list of all kilobots led colours duration check
+    QVector<bool> kilobots_RED_check;  // if red for enough, always red!
+    QVector<double> kilobots_RED_timer;  // timer for red led
+    QVector<bool> kilobots_in_collision; //true at i if kilobot i is in collision
 
 
     QVector<float> lastSent;    // when the last message was sent to the kb at given position
 
+    QVector<float> kilobots_fpt;          // when the kilobot crosses the target for the first time
+    QVector<float> kilobots_sync_time;    // when the kilobot receives info about the target for the first time
+
 
     // int ArenaX, ArenaY;
+
+    // used to implement the mechanism that switch between exploration and communication (i.e., robots not moving, experiments frozen)
+    double lastTransitionTime; // used to switch between exploration time and communication time
+    bool isCommunicationTime; // determine if the robots are communicating or explorations
+
+    int exploration_time = 3;     //in seconds
+    int communication_time = 1;   //in seconds
 
     float minTimeBetweenTwoMsg; // minimum time between two messages
     double time;
@@ -72,7 +86,7 @@ public:
     struct VirtualTarget
     {
         QPoint tPos;
-        int tRadius;
+        double tRadius;
         QColor tColor;
     };
 
@@ -89,7 +103,9 @@ public slots:
 
 private:
 
-    double normAngle(double angle);
+    double normAngle(double angle); //map the angle in [-180,180]
+    QVector2D VectorRotation2D (double angle, QVector2D vec);
+    QVector<int> proximity_sensor(QVector2D obstacle_direction, double kilo_rotation, int num_bit);
 };
 
 #endif //LMCRWENVIRONMENT_H

@@ -1,5 +1,5 @@
 #ifndef LMCRWEXPERIMENT_H
-#define LMCRWEXPERIMENTH
+#define LMCRWEXPERIMENT_H
 
 #include "global.h"
 
@@ -58,7 +58,8 @@ public:
     QPointF position;                               // kilobot position on the plane
     double orientation;                             // kilobot orientation
     kilobot_colour colour;                          // kilobot led colour
-    kilobot_state state;  //kilobot state (i.e. INSIDE, OUTSIDE, LEAVING)
+    kilobot_state state;                            //kilobot state
+    bool in_collision;
 
     /** Update all log values */
     void updateAllValues(kilobot_id id, QPointF position, double orientation, kilobot_colour colour, kilobot_state state) {
@@ -135,16 +136,26 @@ private:
     mykilobotenvironment LMCRWEnvironment;
     QTime m_elapsed_time;
 
+    typedef enum
+    {
+        START = 121,
+        COMMUNICATION = 122,
+        STOP_COMMUNICATION = 123,
+
+    } kilobot_message_type;
 
     // logging variables
     bool saveImages;
     int savedImagesCounter;
     bool logExp;
     QString log_filename_prefix = "log_LMCRW";
-    QFile log_file_areas;
-    QTextStream log_stream_areas;    
     QFile log_file;
+    QFile log_file1;
+    QFile log_fileTime;
     QTextStream log_stream;
+    QTextStream log_stream1;
+    QTextStream log_streamTime;
+
 
     float log_period = 1.0;
     float last_log = 0.0;

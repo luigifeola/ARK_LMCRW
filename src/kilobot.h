@@ -21,8 +21,7 @@ enum lightColour {
 
 typedef uint16_t kilobot_id;
 typedef unsigned char kilobot_channel_colour;
-
-typedef unsigned char kilobot_message_type;
+//typedef unsigned char kilobot_message_type;
 typedef struct {
         uint8_t type :4;
         kilobot_id id :10;
@@ -31,7 +30,7 @@ typedef struct {
 
 struct kilobot_broadcast {
         uint8_t type;
-        QVector <uint8_t> data;
+        QVector < uint8_t > data;
 };
 
 #define uint8_t_LENGTH 10 // in bits
